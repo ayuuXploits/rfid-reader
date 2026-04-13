@@ -9,7 +9,7 @@ ____  _____ ___ ____     ____  _____    _    ____  _____ ____
    |  RFID TAG| - - - - - | [~][~]  |
    +----------+  SPI BUS  +---------+
 
-> Scan. Identify. Act.
+> Scan. Identify. Act...
 
 ## 📡 About
 
