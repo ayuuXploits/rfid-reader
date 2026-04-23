@@ -1,59 +1,76 @@
 #include <SPI.h>
 #include <MFRC522.h>
 
-#define SS_PIN 5   // SDA pin
-#define RST_PIN 21 // RST pin
-#define RELAY_PIN 13 // GPIO pin to control the relay
+// Define pins for readability and easy changes
+const int SS_PIN = 5;
+const int RST_PIN = 21;
+const int RELAY_PIN = 13;
 
-MFRC522 rfid(SS_PIN, RST_PIN); // Create MFRC522 instance
-MFRC522::MIFARE_Key key;
+MFRC522 rfid(SS_PIN, RST_PIN);
 
-// Store the authorized UID of your keychain here (e.g., "bd31152b")
-// You'll get this value from the Serial Monitor in the "Get UID" step below.
-String masterCardUID = "52930c5c"; 
+// Store the authorized UID as a byte array (more memory efficient than String)
+// Replace these bytes with your specific UID
+byte authorizedUID[] = {0x52, 0x93, 0x0C, 0x5C};
 
-bool lightState = false; // Initial state of the light
+bool lightState = false;
 
 void setup() {
   Serial.begin(115200);
-  SPI.begin();       // Init SPI bus
-  rfid.PCD_Init();   // Init RC522 module
+  SPI.begin();
+  rfid.PCD_Init();
 
   pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, lightState); // Initialize light state (LOW for OFF)
+  // Set relay to OFF initially (Assuming Active LOW relay: HIGH = OFF, LOW = ON)
+  // If your relay is Active HIGH, change this to LOW.
+  digitalWrite(RELAY_PIN, HIGH); 
 
-  Serial.println("Scan a PICC (card/keychain) to toggle the light.");
+  Serial.println("System Ready. Scan your tag.");
 }
 
 void loop() {
-  // Look for new cards
-  if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
-    
-    // Get the UID of the card
-    String cardUID = "";
-    for (byte i = 0; i < rfid.uid.size; i++) {
-      if (rfid.uid.uidByte[i] < 0x10) {
-        cardUID += "0";
-      }
-      cardUID += String(rfid.uid.uidByte[i], HEX);
-    }
-    
-    Serial.print("Scanned UID: ");
-    Serial.println(cardUID);
+  // Check if a new card is present
+  if (!rfid.PICC_IsNewCardPresent()) return;
+  
+  // Verify if we can read the serial
+  if (!rfid.PICC_ReadCardSerial()) return;
 
-    // Check if the scanned card is the master card
-    if (cardUID == masterCardUID) {
-      lightState = !lightState; // Toggle the state
-      digitalWrite(RELAY_PIN, lightState); // Update relay output
-      Serial.print("Light state toggled to: ");
-      Serial.println(lightState ? "ON" : "OFF");
-    } else {
-      Serial.println("Unauthorized card!");
-    }
+  Serial.print("Scanned UID: ");
+  printHex(rfid.uid.uidByte, rfid.uid.size);
 
-    // Halt PICC
-    rfid.PICC_HaltA();
-    // Stop encryption on PCD
-    rfid.PCD_StopCrypto1();
+  // Compare the scanned UID with the authorized UID
+  if (checkUID(rfid.uid.uidByte, rfid.uid.size)) {
+    toggleRelay();
+  } else {
+    Serial.println(" - Unauthorized!");
   }
+
+  // Halt PICC and stop encryption to reset the reader for the next scan
+  rfid.PICC_HaltA();
+  rfid.PCD_StopCrypto1();
+}
+
+// Helper to compare UIDs
+bool checkUID(byte *scanned, byte size) {
+  if (size != sizeof(authorizedUID)) return false;
+  return memcmp(scanned, authorizedUID, size) == 0;
+}
+
+// Helper to print Hex values to Serial
+void printHex(byte *buffer, byte size) {
+  for (byte i = 0; i < size; i++) {
+    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+    Serial.print(buffer[i], HEX);
+  }
+  Serial.println();
+}
+
+void toggleRelay() {
+  lightState = !lightState;
+  // If active LOW, write LOW to turn ON, HIGH to turn OFF
+  digitalWrite(RELAY_PIN, lightState ? LOW : HIGH);
+  
+  Serial.print(" - Access Granted! Relay: ");
+  Serial.println(lightState ? "ON" : "OFF");
+  
+  delay(1000); // Debounce: Wait 1 second so the card isn't read 100 times per second
 }
