@@ -42,3 +42,5 @@ control systems.
 3. Wire up the module as shown above
 4. Upload `rfid_reader.ino` to your Arduino
 5. Open Serial Monitor at 9600 baud and scan a card!
+
+ © 2026 ayuuXploits — All Rights Reserved
